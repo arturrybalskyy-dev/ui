@@ -76,6 +76,12 @@ const ApplicationsPage = () => {
 
   const isDetailsOpen = !isEmpty(selectedApplication)
 
+  const selectedApplicationRef = useRef(selectedApplication)  
+
+  useEffect(() => {
+    selectedApplicationRef.current = selectedApplication
+  }, [selectedApplication])
+
   const filters = useFiltersFromSearchParams(
     APPLICATIONS_FILTERS_CONFIG,
     parseApplicationsQueryParams
@@ -90,11 +96,12 @@ const ApplicationsPage = () => {
   }, [])
 
   const {
+    counters,
     fetchData,
     fetchSingleEnrichedFunction,
     filteredData: applications,
-    counters,
-    isLoading
+    isLoading,
+    updateSingleEnrichedFunction
   } = useNuclioEnrichedFunctions({
     projectName: params.projectName,
     filters,
@@ -131,15 +138,17 @@ const ApplicationsPage = () => {
 
   const selectionArgs = useMemo(
     () => ({
-      applicationName: params.name,
       applicationId: params.id,
+      applicationName: params.name,
       applications,
+      dispatch,
+      fetchSingleEnrichedFunction,
+      lastCheckedApplicationIdRef,
       navigate,
       projectName: params.projectName,
+      selectedApplicationRef,
       setSelectedApplication,
-      fetchSingleEnrichedFunction,
-      dispatch,
-      lastCheckedApplicationIdRef
+      updateSingleEnrichedFunction
     }),
     [
       applications,
@@ -148,7 +157,8 @@ const ApplicationsPage = () => {
       navigate,
       params.id,
       params.name,
-      params.projectName
+      params.projectName,
+      updateSingleEnrichedFunction
     ]
   )
 
@@ -178,7 +188,11 @@ const ApplicationsPage = () => {
   useEffect(() => {
     checkForSelectedApplication(selectionArgs)
 
-    return () => checkForSelectedApplication.cancel()
+    return () => {
+      if (checkForSelectedApplication.cancel) {
+        checkForSelectedApplication.cancel()
+      }
+    }
   }, [selectionArgs])
 
   useEffect(() => {

@@ -51,7 +51,7 @@ const resolveNuclioMap = nuclioResult =>
  * @param {Object}   [config.filters]          - Current filter state for client-side filtering
  * @param {Function} [config.filterFn]         - (enrichedFunctions, filters) => filteredArray
  * @param {Function} [config.buildFetchConfig] - (filters) => thunkConfig. When provided the hook
- *   auto-fetches on mount using current filters. Must be a stable reference (useCallback with []).
+ * auto-fetches on mount using current filters. Must be a stable reference (useCallback with []).
  * @param {string}   [config.errorMessage]     - Custom error message for the list fetch
  */
 export const useNuclioEnrichedFunctions = ({
@@ -216,58 +216,98 @@ export const useNuclioEnrichedFunctions = ({
   }, [enrichedFunctions, filters, filterFn])
 
   const fetchSingleEnrichedFunction = useCallback(
-    ({ name, hash, tag, nuclioName }) => {
-      mlrunSingleControllerRef.current?.abort()
-      mlrunSingleControllerRef.current = new AbortController()
-      nuclioSingleControllerRef.current?.abort()
-      nuclioSingleControllerRef.current = new AbortController()
-      gatewaysListControllerRef.current?.abort()
-      gatewaysListControllerRef.current = new AbortController()
+    async ({ name, hash, tag, nuclioName }) => {
+      ;[
+        mlrunSingleControllerRef,
+        nuclioSingleControllerRef,
+        gatewaysListControllerRef,
+        modelEndpointsControllerRef
+      ].forEach(ref => {
+        ref.current?.abort()
+        ref.current = new AbortController()
+      })
 
       const mlrunController = mlrunSingleControllerRef.current
       const resolvedNuclioName = nuclioName || `${projectName}-${name}`
 
-      const promises = [
-        dispatch(
-          fetchFunction({
-            project: projectName,
-            name,
-            hash,
-            tag,
-            signal: mlrunController.signal
-          })
-        )
-          .unwrap()
-          .then(rawFunc => (rawFunc ? parseFunction(rawFunc, projectName) : null)),
-        dispatch(
-          fetchNuclioFunction({
-            project: projectName,
-            name: resolvedNuclioName,
-            signal: nuclioSingleControllerRef.current.signal
-          })
-        ).unwrap()
-      ]
+      const mlrunPromise = dispatch(
+        fetchFunction({ project: projectName, name, hash, tag, signal: mlrunController.signal })
+      )
+        .unwrap()
+        .then(rawFunc => (rawFunc ? parseFunction(rawFunc, projectName) : null))
 
-      if (enrichApiGateways) {
-        promises.push(fetchGatewaysList(gatewaysListControllerRef.current.signal))
+      const nuclioPromise = dispatch(
+        fetchNuclioFunction({
+          project: projectName,
+          name: resolvedNuclioName,
+          signal: nuclioSingleControllerRef.current.signal
+        })
+      ).unwrap()
+
+      const gatewaysPromise = enrichApiGateways
+        ? fetchGatewaysList(gatewaysListControllerRef.current.signal)
+        : Promise.resolve([])
+
+      const endpointsPromise = enrichModelEndpoints
+        ? fetchModelEndpointsList(modelEndpointsControllerRef.current.signal)
+        : Promise.resolve([])
+
+      const [mlrunResult, nuclioResult, gatewaysResult, endpointsResult] = await Promise.allSettled(
+        [mlrunPromise, nuclioPromise, gatewaysPromise, endpointsPromise]
+      )
+
+      if (
+        mlrunController.signal.aborted ||
+        mlrunResult.status !== 'fulfilled' ||
+        !mlrunResult.value
+      ) {
+        return null
       }
 
-      return Promise.allSettled(promises).then(([mlrunResult, nuclioResult, gatewaysResult]) => {
-        if (mlrunController.signal.aborted) return null
-        if (mlrunResult.status !== 'fulfilled' || !mlrunResult.value) return null
+      const parsedMlrunFunc = mlrunResult.value
+      const nuclioFuncData = nuclioResult.status === 'fulfilled' ? nuclioResult.value : null
+      const nuclioMap = nuclioFuncData ? { [resolvedNuclioName]: nuclioFuncData } : {}
+      const gateways = gatewaysResult.status === 'fulfilled' ? gatewaysResult.value : []
+      const modelEndpoints = endpointsResult.status === 'fulfilled' ? endpointsResult.value : []
 
-        const parsed = mlrunResult.value
-        const nuclioFuncData =
-          nuclioResult.status === 'fulfilled' && nuclioResult.value ? nuclioResult.value : null
-        const nuclioMap = nuclioFuncData ? { [resolvedNuclioName]: nuclioFuncData } : {}
-        const gateways = gatewaysResult?.status === 'fulfilled' ? (gatewaysResult.value ?? []) : []
-        const [enriched] = enrichFunctionsWithNuclio([parsed], nuclioMap, gateways)
+      const [enriched] = enrichFunctionsWithNuclio(
+        [parsedMlrunFunc],
+        nuclioMap,
+        gateways,
+        modelEndpoints
+      )
 
-        return enriched
-      })
+      return enriched
     },
-    [dispatch, projectName, enrichApiGateways, fetchGatewaysList]
+    [
+      dispatch,
+      projectName,
+      enrichApiGateways,
+      fetchGatewaysList,
+      enrichModelEndpoints,
+      fetchModelEndpointsList
+    ]
   )
+
+  const updateSingleEnrichedFunction = useCallback(updatedFunc => {
+    const targetName = updatedFunc?.name
+
+    if (!targetName) {
+      return
+    }
+
+    setEnrichedFunctions(prevFunctions =>
+      prevFunctions.map(currentFunc => {
+        const isTargetFunction = currentFunc?.name === targetName
+
+        if (isTargetFunction) {
+          return { ...currentFunc, ...updatedFunc }
+        }
+
+        return currentFunc
+      })
+    )
+  }, [])
 
   return {
     fetchData,
@@ -275,6 +315,7 @@ export const useNuclioEnrichedFunctions = ({
     enrichedFunctions,
     filteredData,
     counters,
-    isLoading
+    isLoading,
+    updateSingleEnrichedFunction
   }
 }

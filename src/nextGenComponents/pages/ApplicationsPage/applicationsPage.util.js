@@ -17,7 +17,7 @@ illegal under applicable law, and the grant of the foregoing license
 under the Apache 2.0 license is conditioned upon your compliance with
 such restriction.
 */
-import { debounce, isEqual } from 'lodash'
+import { debounce, isEqual, isEmpty } from 'lodash'
 
 import { parseIdentifier } from '../../../utils/parseUri'
 import { showErrorNotification } from 'igz-controls/utils/notification.util'
@@ -107,6 +107,8 @@ export const checkForSelectedApplication = debounce(
     navigate,
     projectName,
     setSelectedApplication,
+    selectedApplicationRef,
+    updateSingleEnrichedFunction,
     fetchSingleEnrichedFunction,
     dispatch,
     lastCheckedApplicationIdRef
@@ -124,6 +126,14 @@ export const checkForSelectedApplication = debounce(
                 { replace: true }
               )
             } else {
+              const previousApplication = selectedApplicationRef?.current
+              const hasPreviousApplication = previousApplication && !isEmpty(previousApplication)
+              const hasApplicationChanged = !isEqual(previousApplication, selectedApplication)
+
+              if (hasPreviousApplication && updateSingleEnrichedFunction && hasApplicationChanged) {
+                updateSingleEnrichedFunction(selectedApplication)
+              }
+
               setSelectedApplication(prevState =>
                 isEqual(prevState, selectedApplication) ? prevState : selectedApplication
               )
