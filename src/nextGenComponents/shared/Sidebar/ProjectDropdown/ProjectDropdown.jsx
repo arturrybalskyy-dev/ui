@@ -53,7 +53,7 @@ import {
 const ProjectDropdown = ({ projectName }) => {
   const { pathname } = useLocation()
   const projectStore = useSelector(state => state.projectStore)
-  const { setHoverLocked } = useSidebar()
+  const { setHoverLocked, setOpen: setSidebarOpen } = useSidebar()
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState('')
   const currentProjectRef = useRef(null)
@@ -101,6 +101,9 @@ const ProjectDropdown = ({ projectName }) => {
           onOpenChange={isOpen => {
             setOpen(isOpen)
             setHoverLocked(isOpen)
+            if (!isOpen) {
+              setSidebarOpen(false)
+            }
             setFilter('')
           }}
         >
