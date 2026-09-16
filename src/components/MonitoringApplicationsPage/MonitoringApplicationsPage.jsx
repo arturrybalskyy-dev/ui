@@ -66,7 +66,7 @@ const MonitoringApplicationsPage = () => {
         dispatch(fetchMonitoringApplicationsSummary({ project: params.projectName, signal }))
           .unwrap()
           .catch(error => {
-            if (isRequestAborted(error?.message)) return
+            if (isRequestAborted(error)) return
 
             showErrorNotification(dispatch, error, '', 'Failed to fetch applications summary')
           })
@@ -80,7 +80,7 @@ const MonitoringApplicationsPage = () => {
         )
           .unwrap()
           .catch(error => {
-            if (isRequestAborted(error?.message)) return
+            if (isRequestAborted(error)) return
 
             showErrorNotification(
               dispatch,
@@ -113,11 +113,8 @@ const MonitoringApplicationsPage = () => {
           })
         )
           .unwrap()
-          .catch(error => {
-            if (isRequestAborted(error?.message)) return
-
-            showErrorNotification(dispatch, error, '', 'Failed to fetch artifacts')
-          })
+          // fetchArtifacts already shows its own error notification internally; just avoid an unhandled rejection
+          .catch(() => {})
 
         dispatch(
           fetchMonitoringApplication({
@@ -129,7 +126,7 @@ const MonitoringApplicationsPage = () => {
         )
           .unwrap()
           .catch(error => {
-            if (isRequestAborted(error?.message)) return
+            if (isRequestAborted(error)) return
 
             showErrorNotification(dispatch, error, '', 'Failed to fetch monitoring application')
             navigate(

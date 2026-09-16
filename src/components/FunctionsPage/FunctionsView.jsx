@@ -111,7 +111,7 @@ const FunctionsView = ({
               </ActionBar>
             </div>
             {functionsStore.loading ? (
-              <Loader overlay />
+              <Loader section secondary />
             ) : tableContent.length === 0 && isEmpty(selectedFunction) ? (
               <NoData
                 message={getNoDataMessage(

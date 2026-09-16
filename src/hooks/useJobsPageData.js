@@ -37,6 +37,7 @@ import {
   SCHEDULE_TAB
 } from '../constants'
 import { usePagination } from './usePagination.hook'
+import { isRequestAborted } from '../utils/isRequestAborted'
 import { parseJob } from '../utils/parseJob'
 import { fetchAllJobRuns, fetchJobs, fetchScheduledJobs } from '../reducers/jobReducer'
 import { fetchWorkflows } from '../reducers/workflowReducer'
@@ -183,7 +184,9 @@ export const useJobsPageData = (initialTabData, selectedTab) => {
 
           return response
         })
-        .catch(() => {
+        .catch(error => {
+          if (isRequestAborted(error)) return
+
           if (isJobRunsRequest) {
             setJobRuns([])
           } else {
@@ -230,8 +233,10 @@ export const useJobsPageData = (initialTabData, selectedTab) => {
             setScheduledJobs(parsedJobs)
           }
         })
-        .catch(() => {
-          setScheduledJobs([])
+        .catch(error => {
+          if (!isRequestAborted(error)) {
+            setScheduledJobs([])
+          }
         })
     },
     [dispatch, params.projectName]

@@ -281,8 +281,9 @@ const ScheduledJobsTable = ({
 
   return (
     <>
-      {jobsStore.loading && <Loader overlay />}
-      {jobsStore.loading ? null : jobs.length === 0 ? (
+      {jobsStore.loading ? (
+        <Loader section secondary />
+      ) : jobs.length === 0 ? (
         <NoData
           message={getNoDataMessage(
             filters,

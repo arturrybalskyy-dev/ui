@@ -17,6 +17,23 @@ illegal under applicable law, and the grant of the foregoing license
 under the Apache 2.0 license is conditioned upon your compliance with
 such restriction.
 */
-import { DEFAULT_ABORT_MSG, REQUEST_CANCELED } from '../constants'
+import { DEFAULT_ABORT_MSG, LARGE_REQUEST_CANCELED, REQUEST_CANCELED } from '../constants'
 
-export const isRequestAborted = message => [REQUEST_CANCELED, DEFAULT_ABORT_MSG].includes(message)
+const ABORT_MESSAGES = [REQUEST_CANCELED, DEFAULT_ABORT_MSG, LARGE_REQUEST_CANCELED]
+
+// Accepts either a message string (legacy call sites) or an error/action.payload
+// object, so it can also recognize Axios' ERR_CANCELED code and the { aborted: true }
+// shape produced by thunks that go through rejectWithValue.
+export const isRequestAborted = errorOrMessage => {
+  if (!errorOrMessage) return false
+
+  if (typeof errorOrMessage === 'string') {
+    return ABORT_MESSAGES.includes(errorOrMessage)
+  }
+
+  return (
+    errorOrMessage.aborted === true ||
+    errorOrMessage.code === 'ERR_CANCELED' ||
+    ABORT_MESSAGES.includes(errorOrMessage.message)
+  )
+}

@@ -46,6 +46,7 @@ import { removeModelEndpoints } from '../../../reducers/artifactsReducer'
 import { getNoDataMessage } from '../../../utils/getNoDataMessage'
 import { getScssVariableValue } from 'igz-controls/utils/common.util'
 import { isDetailsTabExists } from '../../../utils/link-helper.util'
+import { isRequestAborted } from '../../../utils/isRequestAborted'
 import { isRowRendered, useVirtualization } from '../../../hooks/useVirtualization.hook'
 import { setFilters } from '../../../reducers/filtersReducer'
 import { clearMetricsOptions } from '../../../reducers/detailsReducer'
@@ -123,18 +124,18 @@ const ModelEndpointsTable = React.forwardRef(
 
     const fetchData = useCallback(
       filters => {
-        ref.current.abort(REQUEST_CANCELED)
-        ref.current = new AbortController()
-
         fetchEndpoints(filters)
           .unwrap()
           .then(modelEndpoints => {
-            if (modelEndpoints) {
-              setModelEndpoints(modelEndpoints)
+            setModelEndpoints(modelEndpoints ?? [])
+          })
+          .catch(error => {
+            if (!isRequestAborted(error)) {
+              setModelEndpoints([])
             }
           })
       },
-      [fetchEndpoints, ref]
+      [fetchEndpoints]
     )
 
     const handleRefresh = useCallback(

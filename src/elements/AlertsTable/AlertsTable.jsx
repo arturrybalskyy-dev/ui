@@ -49,7 +49,7 @@ const AlertsTable = ({
   return (
     <>
       {alertsStore.loading ? (
-        <Loader overlay />
+        <Loader section secondary />
       ) : tableContent.length === 0 && isEmpty(selectedAlert) ? (
         <NoData
           message={getNoDataMessage(

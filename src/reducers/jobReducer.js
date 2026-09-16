@@ -30,6 +30,7 @@ import {
   TYPE_FILTER,
   IS_MF_MODE
 } from '../constants'
+import { isRequestAborted } from '../utils/isRequestAborted'
 import { largeResponseCatchHandler } from '../utils/largeResponseCatchHandler'
 import functionsApi from '../api/functions-api'
 import { showErrorNotification } from 'igz-controls/utils/notification.util'
@@ -47,6 +48,7 @@ const initialState = {
     error: null
   },
   loading: false,
+  loadingCounter: 0,
   error: null,
   newJob: {
     task: {
@@ -347,17 +349,22 @@ const jobsSlice = createSlice({
     builder.addCase(editJob.pending, showLoading)
     builder.addCase(editJob.fulfilled, hideLoading)
     builder.addCase(editJob.rejected, hideLoading)
-    builder.addCase(fetchAllJobRuns.pending, showLoading)
+    builder.addCase(fetchAllJobRuns.pending, state => {
+      state.loadingCounter++
+      state.loading = true
+    })
     builder.addCase(fetchAllJobRuns.fulfilled, (state, action) => {
+      state.loadingCounter--
+      state.loading = state.loadingCounter > 0
       state.error = null
       state.jobRuns = action.payload
-      state.loading = false
     })
     builder.addCase(fetchAllJobRuns.rejected, (state, action) => {
-      if (action.payload?.aborted) return
+      state.loadingCounter--
+      state.loading = state.loadingCounter > 0
+      if (isRequestAborted(action.payload)) return
       state.error = action.payload
       state.jobRuns = []
-      state.loading = false
     })
     builder.addCase(fetchJob.pending, state => {
       state.jobLoadingCounter++
@@ -407,29 +414,39 @@ const jobsSlice = createSlice({
       state.logs.loadingCounter--
       state.logs.error = action.payload
     })
-    builder.addCase(fetchJobs.pending, showLoading)
+    builder.addCase(fetchJobs.pending, state => {
+      state.loadingCounter++
+      state.loading = true
+    })
     builder.addCase(fetchJobs.fulfilled, (state, action) => {
+      state.loadingCounter--
+      state.loading = state.loadingCounter > 0
       state.error = null
       state.jobs = action.payload
-      state.loading = false
     })
     builder.addCase(fetchJobs.rejected, (state, action) => {
-      if (action.payload?.aborted) return
+      state.loadingCounter--
+      state.loading = state.loadingCounter > 0
+      if (isRequestAborted(action.payload)) return
       state.error = action.payload
       state.jobs = []
-      state.loading = false
     })
-    builder.addCase(fetchScheduledJobs.pending, showLoading)
+    builder.addCase(fetchScheduledJobs.pending, state => {
+      state.loadingCounter++
+      state.loading = true
+    })
     builder.addCase(fetchScheduledJobs.fulfilled, (state, action) => {
+      state.loadingCounter--
+      state.loading = state.loadingCounter > 0
       state.error = null
       state.scheduled = action.payload
-      state.loading = false
     })
     builder.addCase(fetchScheduledJobs.rejected, (state, action) => {
-      if (action.payload?.aborted) return
+      state.loadingCounter--
+      state.loading = state.loadingCounter > 0
+      if (isRequestAborted(action.payload)) return
       state.error = action.payload
       state.scheduled = []
-      state.loading = false
     })
     builder.addCase(removeScheduledJob.pending, showLoading)
     builder.addCase(removeScheduledJob.fulfilled, hideLoading)

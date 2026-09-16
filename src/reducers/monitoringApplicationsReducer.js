@@ -20,7 +20,6 @@ such restriction.
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import { get } from 'lodash'
 
-import { defaultPendingHandler } from './redux.util'
 import { splitApplicationsContent } from '../utils/applications.utils'
 import { largeResponseCatchHandler } from '../utils/largeResponseCatchHandler'
 import { getErrorMsg } from 'igz-controls/utils/common.util'
@@ -34,6 +33,7 @@ import nuclioApi from '../api/nuclio'
 const initialState = {
   applicationsSummary: {
     loading: false,
+    loadingCounter: 0,
     error: null
   },
   endpointsWithDetections: {
@@ -51,6 +51,7 @@ const initialState = {
     operatingFunctions: []
   },
   loading: false,
+  loadingCounter: 0,
   error: null
 }
 
@@ -179,47 +180,62 @@ const monitoringApplicationsSlice = createSlice({
       state.endpointsWithDetections.error = null
     })
     builder.addCase(fetchMEPWithDetections.rejected, (state, action) => {
-      if (isRequestAborted(action.error?.message)) return
-
       state.endpointsWithDetections.loading = false
+      if (isRequestAborted(action.error)) return
+
       state.endpointsWithDetections.error = action.error
     })
-    builder.addCase(fetchMonitoringApplication.pending, defaultPendingHandler)
+    builder.addCase(fetchMonitoringApplication.pending, state => {
+      state.loadingCounter++
+      state.loading = true
+    })
     builder.addCase(fetchMonitoringApplication.fulfilled, (state, { payload }) => {
+      state.loadingCounter--
+      state.loading = state.loadingCounter > 0
       state.monitoringApplication = payload
-      state.loading = false
       state.error = null
     })
     builder.addCase(fetchMonitoringApplication.rejected, (state, action) => {
-      if (isRequestAborted(action.error?.message)) return
+      state.loadingCounter--
+      state.loading = state.loadingCounter > 0
+      if (isRequestAborted(action.error)) return
 
-      state.loading = false
       state.error = action.error
     })
-    builder.addCase(fetchMonitoringApplications.pending, defaultPendingHandler)
+    builder.addCase(fetchMonitoringApplications.pending, state => {
+      state.loadingCounter++
+      state.loading = true
+    })
     builder.addCase(fetchMonitoringApplications.fulfilled, (state, { payload }) => {
+      state.loadingCounter--
+      state.loading = state.loadingCounter > 0
       state.monitoringApplications = payload
-      state.loading = false
       state.error = null
     })
     builder.addCase(fetchMonitoringApplications.rejected, (state, action) => {
-      if (action.payload?.aborted) return
+      state.loadingCounter--
+      state.loading = state.loadingCounter > 0
+      if (isRequestAborted(action.payload)) return
 
-      state.loading = false
       state.error = action.payload
     })
     builder.addCase(fetchMonitoringApplicationsSummary.pending, state => {
+      state.applicationsSummary.loadingCounter++
       state.applicationsSummary.loading = true
     })
     builder.addCase(fetchMonitoringApplicationsSummary.fulfilled, (state, { payload }) => {
+      const loadingCounter = state.applicationsSummary.loadingCounter - 1
+
       state.applicationsSummary = payload
-      state.applicationsSummary.loading = false
+      state.applicationsSummary.loadingCounter = loadingCounter
+      state.applicationsSummary.loading = loadingCounter > 0
       state.applicationsSummary.error = null
     })
     builder.addCase(fetchMonitoringApplicationsSummary.rejected, (state, action) => {
-      if (isRequestAborted(action.error?.message)) return
+      state.applicationsSummary.loadingCounter--
+      state.applicationsSummary.loading = state.applicationsSummary.loadingCounter > 0
+      if (isRequestAborted(action.error)) return
 
-      state.applicationsSummary.loading = false
       state.applicationsSummary.error = action.error
     })
   }

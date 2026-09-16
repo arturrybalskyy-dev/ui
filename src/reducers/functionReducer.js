@@ -402,9 +402,9 @@ const functionsSlice = createSlice({
       state.functions = action.payload.funcs
     })
     builder.addCase(fetchFunctions.rejected, (state, action) => {
-      if (isRequestAborted(action.payload?.message)) return
-      state.error = action.payload
       state.loading = false
+      if (isRequestAborted(action.payload)) return
+      state.error = action.payload
       state.functions = []
     })
     builder.addCase(fetchFunctionsTemplates.rejected, (state, action) => {

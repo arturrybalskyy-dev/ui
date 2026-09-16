@@ -204,7 +204,7 @@ const Functions = () => {
           }
         })
         .catch(error => {
-          if (!isRequestAborted(error?.message)) {
+          if (!isRequestAborted(error)) {
             setFunctions([])
           }
         })

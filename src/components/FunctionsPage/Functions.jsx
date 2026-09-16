@@ -240,7 +240,7 @@ const Functions = ({ isAllVersions = false }) => {
           }
         })
         .catch(error => {
-          if (!isRequestAborted(error?.message)) {
+          if (!isRequestAborted(error)) {
             resetFunctions([])
           }
         })

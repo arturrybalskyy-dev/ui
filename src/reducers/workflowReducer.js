@@ -30,6 +30,7 @@ const initialState = {
   workflows: {
     data: [],
     loading: false,
+    loadingCounter: 0,
     error: null,
     rerunInProgress: false
   },
@@ -131,22 +132,21 @@ const workflowsSlice = createSlice({
       }
     })
     builder.addCase(fetchWorkflows.pending, state => {
+      state.workflows.loadingCounter++
       state.workflows.loading = true
     })
     builder.addCase(fetchWorkflows.fulfilled, (state, action) => {
-      state.workflows = {
-        data: action.payload,
-        loading: false,
-        error: null
-      }
+      state.workflows.loadingCounter--
+      state.workflows.loading = state.workflows.loadingCounter > 0
+      state.workflows.data = action.payload
+      state.workflows.error = null
     })
     builder.addCase(fetchWorkflows.rejected, (state, action) => {
-      if (isRequestAborted(action.payload?.message)) return
-      state.workflows = {
-        data: [],
-        loading: false,
-        error: action.payload
-      }
+      state.workflows.loadingCounter--
+      state.workflows.loading = state.workflows.loadingCounter > 0
+      if (isRequestAborted(action.payload)) return
+      state.workflows.data = []
+      state.workflows.error = action.payload
     })
     builder.addCase(rerunWorkflow.fulfilled, state => {
       state.workflows.rerunInProgress = true

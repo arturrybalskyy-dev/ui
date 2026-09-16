@@ -203,7 +203,7 @@ const Artifacts = ({
           return response
         })
         .catch(error => {
-          if (!isRequestAborted(error?.message)) {
+          if (!isRequestAborted(error)) {
             if (isAllVersions) {
               setArtifactVersions([])
             } else {
@@ -226,8 +226,8 @@ const Artifacts = ({
         project: params.projectName,
         category: artifactType,
         config: {
-          signal: tagAbortControllerRef.current.signal,
           ui: {
+            controller: tagAbortControllerRef.current,
             setRequestErrorMessage
           }
         }
@@ -267,6 +267,7 @@ const Artifacts = ({
 
   const handleDeployArtifact = useCallback(
     artifact => {
+      abortControllerRef.current.abort(REQUEST_CANCELED)
       abortControllerRef.current = new AbortController()
 
       dispatch(
@@ -299,6 +300,7 @@ const Artifacts = ({
             }
           }
         })
+        .catch(() => {})
     },
     [dispatch, handleDeployArtifactFailure, params.projectName]
   )

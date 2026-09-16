@@ -105,7 +105,7 @@ const FunctionsViewOld = ({
               </ActionBar>
             </div>
             {functionsStore.loading ? (
-              <Loader overlay />
+              <Loader section secondary />
             ) : functions.length === 0 ? (
               <NoData
                 message={getNoDataMessage(

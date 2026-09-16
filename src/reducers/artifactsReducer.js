@@ -44,6 +44,7 @@ const initialState = {
     allData: [],
     filteredData: [],
     loading: false,
+    loadingCounter: 0,
     documentLoading: false,
     selectedRowData: {
       content: {},
@@ -55,6 +56,7 @@ const initialState = {
     allData: [],
     filteredData: [],
     loading: false,
+    loadingCounter: 0,
     datasetLoading: false,
     selectedRowData: {
       content: {},
@@ -66,6 +68,7 @@ const initialState = {
     allData: [],
     filteredData: [],
     loading: false,
+    loadingCounter: 0,
     LLMPromptLoading: false,
     selectedRowData: {
       content: {},
@@ -79,6 +82,7 @@ const initialState = {
     allData: [],
     filteredData: [],
     loading: false,
+    loadingCounter: 0,
     fileLoading: false,
     selectedRowData: {
       content: {},
@@ -90,12 +94,14 @@ const initialState = {
   modelEndpoints: {
     allData: [],
     loading: false,
+    loadingCounter: 0,
     modelEndpointLoading: false
   },
   models: {
     allData: [],
     filteredData: [],
     loading: false,
+    loadingCounter: 0,
     modelLoading: false,
     selectedRowData: {
       content: {},
@@ -189,6 +195,8 @@ export const fetchArtifacts = createAsyncThunk(
           thunkAPI.dispatch,
           setRequestErrorMessage
         )
+
+        throw error
       })
   }
 )
@@ -343,6 +351,8 @@ export const fetchArtifactsFunctions = createAsyncThunk(
           thunkAPI.dispatch,
           config?.ui?.setRequestErrorMessage
         )
+
+        throw error
       })
   }
 )
@@ -418,6 +428,8 @@ export const fetchModelEndpoints = createAsyncThunk(
           thunkAPI.dispatch,
           config?.ui?.setRequestErrorMessage
         )
+
+        throw error
       })
   }
 )
@@ -572,10 +584,10 @@ const artifactsSlice = createSlice({
       state.loading = false
     })
     builder.addCase(fetchArtifacts.rejected, (state, action) => {
-      if (isRequestAborted(action.payload?.message)) return
-      state.artifacts = []
-      state.error = action.payload
       state.loading = false
+      if (isRequestAborted(action.error)) return
+      state.artifacts = []
+      state.error = action.error
     })
     builder.addCase(fetchArtifactsFunctions.pending, state => {
       state.pipelines.loading = true
@@ -607,6 +619,7 @@ const artifactsSlice = createSlice({
       state.datasets.datasetLoading = false
     })
     builder.addCase(fetchDataSets.pending, state => {
+      state.datasets.loadingCounter++
       state.datasets.loading = true
       state.loading = true
     })
@@ -620,18 +633,20 @@ const artifactsSlice = createSlice({
       state.LLMPrompts.LLMPromptLoading = false
     })
     builder.addCase(fetchLLMPrompts.pending, state => {
+      state.LLMPrompts.loadingCounter++
       state.LLMPrompts.loading = true
       state.loading = true
     })
     builder.addCase(fetchLLMPrompts.fulfilled, (state, action) => {
       state.error = null
       state.LLMPrompts.allData = action.payload?.artifacts ?? []
-      state.LLMPrompts.loading = false
+      state.LLMPrompts.loadingCounter--
+      state.LLMPrompts.loading = state.LLMPrompts.loadingCounter > 0
       state.loading = state.models.loading || state.files.loading
     })
-    builder.addCase(fetchLLMPrompts.rejected, (state, action) => {
-      if (isRequestAborted(action.error?.message)) return
-      state.LLMPrompts.loading = false
+    builder.addCase(fetchLLMPrompts.rejected, state => {
+      state.LLMPrompts.loadingCounter--
+      state.LLMPrompts.loading = state.LLMPrompts.loadingCounter > 0
       state.loading = state.models.loading || state.files.loading
     })
     builder.addCase(fetchDocument.pending, state => {
@@ -644,29 +659,32 @@ const artifactsSlice = createSlice({
       state.documents.documentLoading = false
     })
     builder.addCase(fetchDocuments.pending, state => {
+      state.documents.loadingCounter++
       state.documents.loading = true
       state.loading = true
     })
     builder.addCase(fetchDocuments.fulfilled, (state, action) => {
       state.error = null
       state.documents.allData = action.payload?.artifacts ?? []
-      state.documents.loading = false
-      state.loading = false
+      state.documents.loadingCounter--
+      state.documents.loading = state.documents.loadingCounter > 0
+      state.loading = state.documents.loading
     })
-    builder.addCase(fetchDocuments.rejected, (state, action) => {
-      if (isRequestAborted(action.error?.message)) return
-      state.documents.loading = false
-      state.loading = false
+    builder.addCase(fetchDocuments.rejected, state => {
+      state.documents.loadingCounter--
+      state.documents.loading = state.documents.loadingCounter > 0
+      state.loading = state.documents.loading
     })
     builder.addCase(fetchDataSets.fulfilled, (state, action) => {
       state.error = null
       state.datasets.allData = action.payload?.artifacts ?? []
-      state.datasets.loading = false
+      state.datasets.loadingCounter--
+      state.datasets.loading = state.datasets.loadingCounter > 0
       state.loading = state.models.loading || state.files.loading
     })
-    builder.addCase(fetchDataSets.rejected, (state, action) => {
-      if (isRequestAborted(action.error?.message)) return
-      state.datasets.loading = false
+    builder.addCase(fetchDataSets.rejected, state => {
+      state.datasets.loadingCounter--
+      state.datasets.loading = state.datasets.loadingCounter > 0
       state.loading = state.models.loading || state.files.loading
     })
     builder.addCase(fetchFile.pending, state => {
@@ -679,18 +697,20 @@ const artifactsSlice = createSlice({
       state.files.fileLoading = false
     })
     builder.addCase(fetchFiles.pending, state => {
+      state.files.loadingCounter++
       state.files.loading = true
       state.loading = true
     })
     builder.addCase(fetchFiles.fulfilled, (state, action) => {
       state.error = null
       state.files.allData = action.payload?.artifacts ?? []
-      state.files.loading = false
+      state.files.loadingCounter--
+      state.files.loading = state.files.loadingCounter > 0
       state.loading = state.models.loading || state.datasets.loading
     })
-    builder.addCase(fetchFiles.rejected, (state, action) => {
-      if (isRequestAborted(action.error?.message)) return
-      state.files.loading = false
+    builder.addCase(fetchFiles.rejected, state => {
+      state.files.loadingCounter--
+      state.files.loading = state.files.loadingCounter > 0
       state.loading = state.models.loading || state.datasets.loading
     })
     builder.addCase(fetchModel.pending, state => {
@@ -712,31 +732,37 @@ const artifactsSlice = createSlice({
       state.modelEndpoints.modelEndpointLoading = false
     })
     builder.addCase(fetchModelEndpoints.pending, state => {
+      state.modelEndpoints.loadingCounter++
       state.modelEndpoints.loading = true
     })
     builder.addCase(fetchModelEndpoints.fulfilled, (state, action) => {
-      if (action.payload === undefined) return
+      state.modelEndpoints.loadingCounter--
       state.error = null
-      state.modelEndpoints = { allData: action.payload, loading: false }
+      state.modelEndpoints.allData = action.payload
+      state.modelEndpoints.loading = state.modelEndpoints.loadingCounter > 0
     })
     builder.addCase(fetchModelEndpoints.rejected, (state, action) => {
-      if (isRequestAborted(action.payload?.message)) return
-      state.error = action.payload
-      state.modelEndpoints = { allData: [], loading: false }
+      state.modelEndpoints.loadingCounter--
+      state.modelEndpoints.loading = state.modelEndpoints.loadingCounter > 0
+      if (isRequestAborted(action.error)) return
+      state.error = action.error
+      state.modelEndpoints.allData = []
     })
     builder.addCase(fetchModels.pending, state => {
+      state.models.loadingCounter++
       state.models.loading = true
       state.loading = true
     })
     builder.addCase(fetchModels.fulfilled, (state, action) => {
       state.error = null
       state.models.allData = action.payload?.artifacts ?? []
-      state.models.loading = false
+      state.models.loadingCounter--
+      state.models.loading = state.models.loadingCounter > 0
       state.loading = state.files.loading || state.datasets.loading
     })
-    builder.addCase(fetchModels.rejected, (state, action) => {
-      if (isRequestAborted(action.error?.message)) return
-      state.models.loading = false
+    builder.addCase(fetchModels.rejected, state => {
+      state.models.loadingCounter--
+      state.models.loading = state.models.loadingCounter > 0
       state.loading = state.files.loading || state.datasets.loading
     })
   }

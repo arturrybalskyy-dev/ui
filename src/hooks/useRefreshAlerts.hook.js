@@ -31,6 +31,7 @@ import {
   REQUEST_CANCELED
 } from '../constants'
 import { fetchAlerts } from '../reducers/alertsReducer'
+import { isRequestAborted } from '../utils/isRequestAborted'
 
 export const useRefreshAlerts = (filters, isAlertsPage) => {
   const [alerts, setAlerts] = useState(null)
@@ -87,8 +88,10 @@ export const useRefreshAlerts = (filters, isAlertsPage) => {
             setAlerts([])
           }
         })
-        .catch(() => {
-          setAlerts([])
+        .catch(error => {
+          if (!isRequestAborted(error)) {
+            setAlerts([])
+          }
         })
     },
     [dispatch, isAlertsPage, params.id, params.projectName, params.tag]

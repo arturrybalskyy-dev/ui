@@ -117,10 +117,11 @@ export const fetchProjectApiGateways = createAsyncThunk(
         return []
       })
       .catch(error => {
-        if (!isRequestAborted(error?.message)) {
+        if (!isRequestAborted(error)) {
           showErrorNotification(dispatch, error, 'Failed to load API gateways')
-          return rejectWithValue(error)
         }
+
+        return rejectWithValue(error)
       })
   }
 )
@@ -196,9 +197,9 @@ const nuclioSlice = createSlice({
       state.error = null
     })
     builder.addCase(fetchNuclioFunctions.rejected, (state, action) => {
-      if (isRequestAborted(action.payload?.message)) return
-      state.currentProjectFunctions = []
       state.loading = false
+      if (isRequestAborted(action.payload)) return
+      state.currentProjectFunctions = []
       state.error = action.payload?.message
     })
     builder.addCase(fetchAllNuclioFunctions.pending, state => {
@@ -210,9 +211,9 @@ const nuclioSlice = createSlice({
       state.error = null
     })
     builder.addCase(fetchAllNuclioFunctions.rejected, (state, action) => {
-      if (isRequestAborted(action.payload?.message)) return
-      state.functions = {}
       state.loading = false
+      if (isRequestAborted(action.payload)) return
+      state.functions = {}
       state.error = action.payload?.message
     })
     builder.addCase(fetchNuclioFunction.pending, state => {
@@ -284,9 +285,10 @@ const nuclioSlice = createSlice({
       state.projectApiGatewaysError = null
     })
     builder.addCase(fetchProjectApiGateways.rejected, (state, action) => {
-      state.projectApiGateways = []
       state.projectApiGatewaysLoading = false
-      state.projectApiGatewaysError = action.error?.message
+      if (isRequestAborted(action.payload)) return
+      state.projectApiGateways = []
+      state.projectApiGatewaysError = action.payload?.message
     })
   }
 })

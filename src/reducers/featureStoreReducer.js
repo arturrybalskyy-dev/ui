@@ -184,7 +184,7 @@ export const fetchFeatureSets = createAsyncThunk(
           config?.ui?.setRequestErrorMessage
         )
 
-        return thunkAPI.rejectWithValue(error)
+        return thunkAPI.rejectWithValue(error.message)
       })
   }
 )
@@ -456,8 +456,8 @@ const featureStoreSlice = createSlice({
     })
     builder.addCase(fetchFeatureSets.pending, showLoading)
     builder.addCase(fetchFeatureSets.rejected, (state, action) => {
-      if (isRequestAborted(action.payload?.message)) return
       state.loading = false
+      if (isRequestAborted(action.payload)) return
       state.error = action.payload
     })
     builder.addCase(fetchFeatureSets.fulfilled, (state, action) => {
@@ -490,8 +490,8 @@ const featureStoreSlice = createSlice({
     })
     builder.addCase(fetchFeatureVectors.pending, showLoading)
     builder.addCase(fetchFeatureVectors.rejected, (state, action) => {
-      if (isRequestAborted(action.payload?.message)) return
       state.loading = false
+      if (isRequestAborted(action.payload)) return
       state.error = action.payload
     })
     builder.addCase(fetchFeatureVectors.fulfilled, (state, action) => {
@@ -508,8 +508,8 @@ const featureStoreSlice = createSlice({
       state.features.loading = true
     })
     builder.addCase(fetchFeatures.rejected, (state, action) => {
-      if (isRequestAborted(action.payload?.message)) return
       state.features.loading = false
+      if (isRequestAborted(action.payload)) return
       state.error = action.payload
     })
     builder.addCase(fetchFeatures.fulfilled, (state, action) => {

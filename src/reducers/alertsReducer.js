@@ -20,7 +20,7 @@ such restriction.
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 
 import alertsApi from '../api/alerts-api'
-import { defaultPendingHandler } from './redux.util'
+import { isRequestAborted } from '../utils/isRequestAborted'
 import { parseAlerts } from '../utils/parseAlert'
 import { largeResponseCatchHandler } from '../utils/largeResponseCatchHandler'
 import {
@@ -43,6 +43,7 @@ const initialState = {
   alerts: [],
   error: null,
   loading: false,
+  loadingCounter: 0,
   alertLoading: false
 }
 
@@ -188,32 +189,41 @@ const alertsSlice = createSlice({
       state.alerts = initialState.alerts
       state.error = null
       state.loading = false
+      state.loadingCounter = 0
     }
   },
   extraReducers: builder => {
     builder
-      .addCase(fetchAlert.pending, defaultPendingHandler)
+      .addCase(fetchAlert.pending, state => {
+        state.loadingCounter++
+        state.loading = true
+      })
       .addCase(fetchAlert.fulfilled, (state, action) => {
+        state.loadingCounter--
+        state.loading = state.loadingCounter > 0
         state.alerts = action.payload
-        state.loading = false
       })
       .addCase(fetchAlert.rejected, (state, action) => {
-        if (action.payload?.aborted) return
+        state.loadingCounter--
+        state.loading = state.loadingCounter > 0
+        if (isRequestAborted(action.payload)) return
         state.alerts = []
         state.error = action.payload
-        state.loading = false
       })
       .addCase(fetchAlerts.pending, state => {
+        state.loadingCounter++
         state.loading = true
         state.error = null
       })
       .addCase(fetchAlerts.fulfilled, (state, action) => {
-        state.loading = false
+        state.loadingCounter--
+        state.loading = state.loadingCounter > 0
         state.alerts = action.payload
       })
       .addCase(fetchAlerts.rejected, (state, action) => {
-        if (action.payload?.aborted) return
-        state.loading = false
+        state.loadingCounter--
+        state.loading = state.loadingCounter > 0
+        if (isRequestAborted(action.payload)) return
         state.error = action.payload
       })
       .addCase(fetchAlertById.pending, state => {
