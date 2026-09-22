@@ -49,6 +49,7 @@ import {
   REQUEST_CANCELED
 } from '../../constants'
 import { getScssVariableValue } from 'igz-controls/utils/common.util'
+import { isRequestAborted } from '../../utils/isRequestAborted'
 import { isRowRendered, useVirtualization } from '../../hooks/useVirtualization.hook'
 import { fetchMonitoringApplication } from '../../reducers/monitoringApplicationsReducer'
 import { PRIMARY_BUTTON } from 'igz-controls/constants'
@@ -141,8 +142,11 @@ const ApplicationMetrics = () => {
     )
       .unwrap()
       .then(modelEndpoints => {
-        if (modelEndpoints) {
-          setModelEndpoints(modelEndpoints)
+        setModelEndpoints(modelEndpoints ?? [])
+      })
+      .catch(error => {
+        if (!isRequestAborted(error)) {
+          setModelEndpoints([])
         }
       })
   }, [dispatch, params.projectName])

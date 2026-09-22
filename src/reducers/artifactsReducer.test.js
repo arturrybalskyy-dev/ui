@@ -19,7 +19,11 @@ such restriction.
 */
 import { configureStore } from '@reduxjs/toolkit'
 
-import artifactsReducer, { fetchArtifacts, fetchModels } from './artifactsReducer'
+import artifactsReducer, {
+  fetchArtifacts,
+  fetchModelEndpoints,
+  fetchModels
+} from './artifactsReducer'
 import artifactsApi from '../api/artifacts-api'
 import { REQUEST_CANCELED } from '../constants'
 
@@ -93,27 +97,74 @@ describe('fetchArtifacts abort handling', () => {
 describe('artifactsReducer fetchModels loading counter', () => {
   const arg = { project: 'p', filters: {}, config: {} }
 
-  it('keeps models.loading true across an abort until the request that superseded it settles', () => {
+  it('keeps models.loading AND the top-level loading (what the UI renders) true across an abort until the request that superseded it settles', () => {
     let state = artifactsReducer(undefined, { type: '@@INIT' })
 
-    // Request A starts (e.g. the initial page load)
     state = artifactsReducer(state, fetchModels.pending('requestA', arg))
     expect(state.models.loading).toBe(true)
+    expect(state.loading).toBe(true)
 
-    // The user changes a filter before A settles: request B starts
     state = artifactsReducer(state, fetchModels.pending('requestB', arg))
     expect(state.models.loading).toBe(true)
+    expect(state.loading).toBe(true)
 
-    // A is aborted in favor of B
     state = artifactsReducer(state, fetchModels.rejected(new Error('canceled'), 'requestA', arg))
     expect(state.models.loading).toBe(true)
+    expect(state.loading).toBe(true)
 
-    // B fulfills with real data
     state = artifactsReducer(
       state,
       fetchModels.fulfilled({ artifacts: [someArtifact] }, 'requestB', arg)
     )
     expect(state.models.loading).toBe(false)
+    expect(state.loading).toBe(false)
     expect(state.models.allData).toEqual([someArtifact])
+  })
+
+  it('keeps the top-level loading true when fetchArtifacts (e.g. a Details panel) is still in flight even after an unrelated fetchModels request settles', () => {
+    let state = artifactsReducer(undefined, { type: '@@INIT' })
+
+    state = artifactsReducer(state, fetchModels.pending('modelsRequest', arg))
+    expect(state.loading).toBe(true)
+
+    state = artifactsReducer(state, fetchArtifacts.pending('artifactsRequest', arg))
+    expect(state.loading).toBe(true)
+
+    state = artifactsReducer(
+      state,
+      fetchModels.rejected(new Error('canceled'), 'modelsRequest', arg)
+    )
+    expect(state.loading).toBe(true)
+
+    state = artifactsReducer(
+      state,
+      fetchArtifacts.fulfilled([someArtifact], 'artifactsRequest', arg)
+    )
+    expect(state.loading).toBe(false)
+  })
+})
+
+describe('artifactsReducer fetchModelEndpoints (multi-caller, data NOT guarded)', () => {
+  const arg = { project: 'p', filters: {}, config: {} }
+
+  it('applies both concurrent callers responses instead of dropping one as "stale"', () => {
+    let state = artifactsReducer(undefined, { type: '@@INIT' })
+
+    state = artifactsReducer(state, fetchModelEndpoints.pending('listRequest', arg))
+    state = artifactsReducer(state, fetchModelEndpoints.pending('detailsRequest', arg))
+    expect(state.modelEndpoints.loading).toBe(true)
+
+    state = artifactsReducer(
+      state,
+      fetchModelEndpoints.fulfilled([{ name: 'from-list' }], 'listRequest', arg)
+    )
+    expect(state.modelEndpoints.allData).toEqual([{ name: 'from-list' }])
+    expect(state.modelEndpoints.loading).toBe(true)
+
+    state = artifactsReducer(
+      state,
+      fetchModelEndpoints.fulfilled([{ name: 'from-details' }], 'detailsRequest', arg)
+    )
+    expect(state.modelEndpoints.loading).toBe(false)
   })
 })

@@ -18,7 +18,12 @@ under the Apache 2.0 license is conditioned upon your compliance with
 such restriction.
 */
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
-import { defaultPendingHandler, hideLoading, showLoading } from './redux.util'
+import {
+  isStaleRequest,
+  requestPending,
+  requestPendingUntracked,
+  requestSettled
+} from './redux.util'
 import artifactsApi from '../api/artifacts-api'
 import functionsApi from '../api/functions-api'
 import modelEndpointsApi from '../api/modelEndpoints-api'
@@ -44,7 +49,8 @@ const initialState = {
     allData: [],
     filteredData: [],
     loading: false,
-    loadingCounter: 0,
+    pendingRequestIds: [],
+    currentRequestId: null,
     documentLoading: false,
     selectedRowData: {
       content: {},
@@ -56,7 +62,8 @@ const initialState = {
     allData: [],
     filteredData: [],
     loading: false,
-    loadingCounter: 0,
+    pendingRequestIds: [],
+    currentRequestId: null,
     datasetLoading: false,
     selectedRowData: {
       content: {},
@@ -68,7 +75,8 @@ const initialState = {
     allData: [],
     filteredData: [],
     loading: false,
-    loadingCounter: 0,
+    pendingRequestIds: [],
+    currentRequestId: null,
     LLMPromptLoading: false,
     selectedRowData: {
       content: {},
@@ -82,7 +90,8 @@ const initialState = {
     allData: [],
     filteredData: [],
     loading: false,
-    loadingCounter: 0,
+    pendingRequestIds: [],
+    currentRequestId: null,
     fileLoading: false,
     selectedRowData: {
       content: {},
@@ -91,17 +100,19 @@ const initialState = {
     }
   },
   loading: false,
+  pendingRequestIds: [],
   modelEndpoints: {
     allData: [],
     loading: false,
-    loadingCounter: 0,
+    pendingRequestIds: [],
     modelEndpointLoading: false
   },
   models: {
     allData: [],
     filteredData: [],
     loading: false,
-    loadingCounter: 0,
+    pendingRequestIds: [],
+    currentRequestId: null,
     modelLoading: false,
     selectedRowData: {
       content: {},
@@ -549,9 +560,9 @@ const artifactsSlice = createSlice({
     }
   },
   extraReducers: builder => {
-    builder.addCase(addTag.pending, showLoading)
-    builder.addCase(addTag.fulfilled, hideLoading)
-    builder.addCase(addTag.rejected, hideLoading)
+    builder.addCase(addTag.pending, requestPendingUntracked)
+    builder.addCase(addTag.fulfilled, requestSettled)
+    builder.addCase(addTag.rejected, requestSettled)
     builder.addCase(buildFunction.pending, state => {
       state.pipelines.loading = true
     })
@@ -563,28 +574,28 @@ const artifactsSlice = createSlice({
       state.error = action.error
       state.pipelines.loading = false
     })
-    builder.addCase(deleteArtifact.pending, showLoading)
-    builder.addCase(deleteArtifact.fulfilled, hideLoading)
-    builder.addCase(deleteArtifact.rejected, hideLoading)
-    builder.addCase(updateArtifact.pending, showLoading)
-    builder.addCase(updateArtifact.fulfilled, hideLoading)
-    builder.addCase(updateArtifact.rejected, hideLoading)
+    builder.addCase(deleteArtifact.pending, requestPendingUntracked)
+    builder.addCase(deleteArtifact.fulfilled, requestSettled)
+    builder.addCase(deleteArtifact.rejected, requestSettled)
+    builder.addCase(updateArtifact.pending, requestPendingUntracked)
+    builder.addCase(updateArtifact.fulfilled, requestSettled)
+    builder.addCase(updateArtifact.rejected, requestSettled)
     builder.addCase(fetchLLMPromptTemplate.fulfilled, (state, action) => {
       state.LLMPrompts.promptTemplate = action.payload.data
     })
-    builder.addCase(deleteTag.pending, showLoading)
-    builder.addCase(deleteTag.fulfilled, hideLoading)
-    builder.addCase(deleteTag.rejected, hideLoading)
-    builder.addCase(editTag.pending, showLoading)
-    builder.addCase(editTag.fulfilled, hideLoading)
-    builder.addCase(editTag.rejected, hideLoading)
-    builder.addCase(fetchArtifacts.pending, defaultPendingHandler)
+    builder.addCase(deleteTag.pending, requestPendingUntracked)
+    builder.addCase(deleteTag.fulfilled, requestSettled)
+    builder.addCase(deleteTag.rejected, requestSettled)
+    builder.addCase(editTag.pending, requestPendingUntracked)
+    builder.addCase(editTag.fulfilled, requestSettled)
+    builder.addCase(editTag.rejected, requestSettled)
+    builder.addCase(fetchArtifacts.pending, requestPending)
     builder.addCase(fetchArtifacts.fulfilled, (state, action) => {
+      requestSettled(state, action)
       state.artifacts = action.payload
-      state.loading = false
     })
     builder.addCase(fetchArtifacts.rejected, (state, action) => {
-      state.loading = false
+      requestSettled(state, action)
       if (isRequestAborted(action.error)) return
       state.artifacts = []
       state.error = action.error
@@ -618,10 +629,9 @@ const artifactsSlice = createSlice({
     builder.addCase(fetchDataSet.rejected, state => {
       state.datasets.datasetLoading = false
     })
-    builder.addCase(fetchDataSets.pending, state => {
-      state.datasets.loadingCounter++
-      state.datasets.loading = true
-      state.loading = true
+    builder.addCase(fetchDataSets.pending, (state, action) => {
+      requestPending(state.datasets, action)
+      requestPending(state, action)
     })
     builder.addCase(fetchLLMPrompt.pending, state => {
       state.LLMPrompts.LLMPromptLoading = true
@@ -632,22 +642,20 @@ const artifactsSlice = createSlice({
     builder.addCase(fetchLLMPrompt.rejected, state => {
       state.LLMPrompts.LLMPromptLoading = false
     })
-    builder.addCase(fetchLLMPrompts.pending, state => {
-      state.LLMPrompts.loadingCounter++
-      state.LLMPrompts.loading = true
-      state.loading = true
+    builder.addCase(fetchLLMPrompts.pending, (state, action) => {
+      requestPending(state.LLMPrompts, action)
+      requestPending(state, action)
     })
     builder.addCase(fetchLLMPrompts.fulfilled, (state, action) => {
+      requestSettled(state.LLMPrompts, action)
+      requestSettled(state, action)
+      if (isStaleRequest(state.LLMPrompts, action)) return
       state.error = null
       state.LLMPrompts.allData = action.payload?.artifacts ?? []
-      state.LLMPrompts.loadingCounter--
-      state.LLMPrompts.loading = state.LLMPrompts.loadingCounter > 0
-      state.loading = state.models.loading || state.files.loading
     })
-    builder.addCase(fetchLLMPrompts.rejected, state => {
-      state.LLMPrompts.loadingCounter--
-      state.LLMPrompts.loading = state.LLMPrompts.loadingCounter > 0
-      state.loading = state.models.loading || state.files.loading
+    builder.addCase(fetchLLMPrompts.rejected, (state, action) => {
+      requestSettled(state.LLMPrompts, action)
+      requestSettled(state, action)
     })
     builder.addCase(fetchDocument.pending, state => {
       state.documents.documentLoading = true
@@ -658,34 +666,31 @@ const artifactsSlice = createSlice({
     builder.addCase(fetchDocument.rejected, state => {
       state.documents.documentLoading = false
     })
-    builder.addCase(fetchDocuments.pending, state => {
-      state.documents.loadingCounter++
-      state.documents.loading = true
-      state.loading = true
+    builder.addCase(fetchDocuments.pending, (state, action) => {
+      requestPending(state.documents, action)
+      requestPending(state, action)
     })
     builder.addCase(fetchDocuments.fulfilled, (state, action) => {
+      requestSettled(state.documents, action)
+      requestSettled(state, action)
+      if (isStaleRequest(state.documents, action)) return
       state.error = null
       state.documents.allData = action.payload?.artifacts ?? []
-      state.documents.loadingCounter--
-      state.documents.loading = state.documents.loadingCounter > 0
-      state.loading = state.documents.loading
     })
-    builder.addCase(fetchDocuments.rejected, state => {
-      state.documents.loadingCounter--
-      state.documents.loading = state.documents.loadingCounter > 0
-      state.loading = state.documents.loading
+    builder.addCase(fetchDocuments.rejected, (state, action) => {
+      requestSettled(state.documents, action)
+      requestSettled(state, action)
     })
     builder.addCase(fetchDataSets.fulfilled, (state, action) => {
+      requestSettled(state.datasets, action)
+      requestSettled(state, action)
+      if (isStaleRequest(state.datasets, action)) return
       state.error = null
       state.datasets.allData = action.payload?.artifacts ?? []
-      state.datasets.loadingCounter--
-      state.datasets.loading = state.datasets.loadingCounter > 0
-      state.loading = state.models.loading || state.files.loading
     })
-    builder.addCase(fetchDataSets.rejected, state => {
-      state.datasets.loadingCounter--
-      state.datasets.loading = state.datasets.loadingCounter > 0
-      state.loading = state.models.loading || state.files.loading
+    builder.addCase(fetchDataSets.rejected, (state, action) => {
+      requestSettled(state.datasets, action)
+      requestSettled(state, action)
     })
     builder.addCase(fetchFile.pending, state => {
       state.files.fileLoading = true
@@ -696,22 +701,20 @@ const artifactsSlice = createSlice({
     builder.addCase(fetchFile.rejected, state => {
       state.files.fileLoading = false
     })
-    builder.addCase(fetchFiles.pending, state => {
-      state.files.loadingCounter++
-      state.files.loading = true
-      state.loading = true
+    builder.addCase(fetchFiles.pending, (state, action) => {
+      requestPending(state.files, action)
+      requestPending(state, action)
     })
     builder.addCase(fetchFiles.fulfilled, (state, action) => {
+      requestSettled(state.files, action)
+      requestSettled(state, action)
+      if (isStaleRequest(state.files, action)) return
       state.error = null
       state.files.allData = action.payload?.artifacts ?? []
-      state.files.loadingCounter--
-      state.files.loading = state.files.loadingCounter > 0
-      state.loading = state.models.loading || state.datasets.loading
     })
-    builder.addCase(fetchFiles.rejected, state => {
-      state.files.loadingCounter--
-      state.files.loading = state.files.loadingCounter > 0
-      state.loading = state.models.loading || state.datasets.loading
+    builder.addCase(fetchFiles.rejected, (state, action) => {
+      requestSettled(state.files, action)
+      requestSettled(state, action)
     })
     builder.addCase(fetchModel.pending, state => {
       state.models.modelLoading = true
@@ -731,39 +734,34 @@ const artifactsSlice = createSlice({
     builder.addCase(fetchModelEndpoint.rejected, state => {
       state.modelEndpoints.modelEndpointLoading = false
     })
-    builder.addCase(fetchModelEndpoints.pending, state => {
-      state.modelEndpoints.loadingCounter++
-      state.modelEndpoints.loading = true
+    builder.addCase(fetchModelEndpoints.pending, (state, action) => {
+      requestPending(state.modelEndpoints, action)
     })
     builder.addCase(fetchModelEndpoints.fulfilled, (state, action) => {
-      state.modelEndpoints.loadingCounter--
+      requestSettled(state.modelEndpoints, action)
       state.error = null
       state.modelEndpoints.allData = action.payload
-      state.modelEndpoints.loading = state.modelEndpoints.loadingCounter > 0
     })
     builder.addCase(fetchModelEndpoints.rejected, (state, action) => {
-      state.modelEndpoints.loadingCounter--
-      state.modelEndpoints.loading = state.modelEndpoints.loadingCounter > 0
+      requestSettled(state.modelEndpoints, action)
       if (isRequestAborted(action.error)) return
       state.error = action.error
       state.modelEndpoints.allData = []
     })
-    builder.addCase(fetchModels.pending, state => {
-      state.models.loadingCounter++
-      state.models.loading = true
-      state.loading = true
+    builder.addCase(fetchModels.pending, (state, action) => {
+      requestPending(state.models, action)
+      requestPending(state, action)
     })
     builder.addCase(fetchModels.fulfilled, (state, action) => {
+      requestSettled(state.models, action)
+      requestSettled(state, action)
+      if (isStaleRequest(state.models, action)) return
       state.error = null
       state.models.allData = action.payload?.artifacts ?? []
-      state.models.loadingCounter--
-      state.models.loading = state.models.loadingCounter > 0
-      state.loading = state.files.loading || state.datasets.loading
     })
-    builder.addCase(fetchModels.rejected, state => {
-      state.models.loadingCounter--
-      state.models.loading = state.models.loadingCounter > 0
-      state.loading = state.files.loading || state.datasets.loading
+    builder.addCase(fetchModels.rejected, (state, action) => {
+      requestSettled(state.models, action)
+      requestSettled(state, action)
     })
   }
 })

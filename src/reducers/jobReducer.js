@@ -19,7 +19,12 @@ such restriction.
 */
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
 import jobsApi from '../api/jobs-api'
-import { defaultRejectedHandler, hideLoading, showLoading } from './redux.util'
+import {
+  isStaleRequest,
+  requestPending,
+  requestPendingUntracked,
+  requestSettled
+} from './redux.util'
 import { get } from 'lodash'
 import {
   DATES_FILTER,
@@ -48,7 +53,8 @@ const initialState = {
     error: null
   },
   loading: false,
-  loadingCounter: 0,
+  pendingRequestIds: [],
+  currentRequestId: null,
   error: null,
   newJob: {
     task: {
@@ -337,31 +343,28 @@ const jobsSlice = createSlice({
     }
   },
   extraReducers: builder => {
-    builder.addCase(abortJob.pending, showLoading)
-    builder.addCase(abortJob.fulfilled, hideLoading)
-    builder.addCase(abortJob.rejected, hideLoading)
-    builder.addCase(deleteAllJobRuns.pending, showLoading)
-    builder.addCase(deleteAllJobRuns.fulfilled, hideLoading)
-    builder.addCase(deleteAllJobRuns.rejected, hideLoading)
-    builder.addCase(deleteJob.pending, showLoading)
-    builder.addCase(deleteJob.fulfilled, hideLoading)
-    builder.addCase(deleteJob.rejected, hideLoading)
-    builder.addCase(editJob.pending, showLoading)
-    builder.addCase(editJob.fulfilled, hideLoading)
-    builder.addCase(editJob.rejected, hideLoading)
-    builder.addCase(fetchAllJobRuns.pending, state => {
-      state.loadingCounter++
-      state.loading = true
-    })
+    builder.addCase(abortJob.pending, requestPendingUntracked)
+    builder.addCase(abortJob.fulfilled, requestSettled)
+    builder.addCase(abortJob.rejected, requestSettled)
+    builder.addCase(deleteAllJobRuns.pending, requestPendingUntracked)
+    builder.addCase(deleteAllJobRuns.fulfilled, requestSettled)
+    builder.addCase(deleteAllJobRuns.rejected, requestSettled)
+    builder.addCase(deleteJob.pending, requestPendingUntracked)
+    builder.addCase(deleteJob.fulfilled, requestSettled)
+    builder.addCase(deleteJob.rejected, requestSettled)
+    builder.addCase(editJob.pending, requestPendingUntracked)
+    builder.addCase(editJob.fulfilled, requestSettled)
+    builder.addCase(editJob.rejected, requestSettled)
+    builder.addCase(fetchAllJobRuns.pending, requestPending)
     builder.addCase(fetchAllJobRuns.fulfilled, (state, action) => {
-      state.loadingCounter--
-      state.loading = state.loadingCounter > 0
+      requestSettled(state, action)
+      if (isStaleRequest(state, action)) return
       state.error = null
       state.jobRuns = action.payload
     })
     builder.addCase(fetchAllJobRuns.rejected, (state, action) => {
-      state.loadingCounter--
-      state.loading = state.loadingCounter > 0
+      requestSettled(state, action)
+      if (isStaleRequest(state, action)) return
       if (isRequestAborted(action.payload)) return
       state.error = action.payload
       state.jobRuns = []
@@ -414,51 +417,48 @@ const jobsSlice = createSlice({
       state.logs.loadingCounter--
       state.logs.error = action.payload
     })
-    builder.addCase(fetchJobs.pending, state => {
-      state.loadingCounter++
-      state.loading = true
-    })
+    builder.addCase(fetchJobs.pending, requestPending)
     builder.addCase(fetchJobs.fulfilled, (state, action) => {
-      state.loadingCounter--
-      state.loading = state.loadingCounter > 0
+      requestSettled(state, action)
+      if (isStaleRequest(state, action)) return
       state.error = null
       state.jobs = action.payload
     })
     builder.addCase(fetchJobs.rejected, (state, action) => {
-      state.loadingCounter--
-      state.loading = state.loadingCounter > 0
+      requestSettled(state, action)
+      if (isStaleRequest(state, action)) return
       if (isRequestAborted(action.payload)) return
       state.error = action.payload
       state.jobs = []
     })
-    builder.addCase(fetchScheduledJobs.pending, state => {
-      state.loadingCounter++
-      state.loading = true
-    })
+    builder.addCase(fetchScheduledJobs.pending, requestPending)
     builder.addCase(fetchScheduledJobs.fulfilled, (state, action) => {
-      state.loadingCounter--
-      state.loading = state.loadingCounter > 0
+      requestSettled(state, action)
+      if (isStaleRequest(state, action)) return
       state.error = null
       state.scheduled = action.payload
     })
     builder.addCase(fetchScheduledJobs.rejected, (state, action) => {
-      state.loadingCounter--
-      state.loading = state.loadingCounter > 0
+      requestSettled(state, action)
+      if (isStaleRequest(state, action)) return
       if (isRequestAborted(action.payload)) return
       state.error = action.payload
       state.scheduled = []
     })
-    builder.addCase(removeScheduledJob.pending, showLoading)
-    builder.addCase(removeScheduledJob.fulfilled, hideLoading)
-    builder.addCase(removeScheduledJob.rejected, defaultRejectedHandler)
-    builder.addCase(runNewJob.pending, showLoading)
-    builder.addCase(runNewJob.fulfilled, state => {
+    builder.addCase(removeScheduledJob.pending, requestPendingUntracked)
+    builder.addCase(removeScheduledJob.fulfilled, requestSettled)
+    builder.addCase(removeScheduledJob.rejected, (state, action) => {
+      requestSettled(state, action)
+      state.error = action.error
+    })
+    builder.addCase(runNewJob.pending, requestPendingUntracked)
+    builder.addCase(runNewJob.fulfilled, (state, action) => {
+      requestSettled(state, action)
       state.error = null
-      state.loading = false
     })
     builder.addCase(runNewJob.rejected, (state, action) => {
+      requestSettled(state, action)
       state.error = getNewJobErrorMsg(action.payload)
-      state.loading = false
     })
   }
 })

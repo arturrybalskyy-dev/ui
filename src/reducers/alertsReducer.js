@@ -21,6 +21,7 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 
 import alertsApi from '../api/alerts-api'
 import { isRequestAborted } from '../utils/isRequestAborted'
+import { isStaleRequest, requestPending, requestSettled } from './redux.util'
 import { parseAlerts } from '../utils/parseAlert'
 import { largeResponseCatchHandler } from '../utils/largeResponseCatchHandler'
 import {
@@ -43,7 +44,8 @@ const initialState = {
   alerts: [],
   error: null,
   loading: false,
-  loadingCounter: 0,
+  pendingRequestIds: [],
+  currentRequestId: null,
   alertLoading: false
 }
 
@@ -189,40 +191,37 @@ const alertsSlice = createSlice({
       state.alerts = initialState.alerts
       state.error = null
       state.loading = false
-      state.loadingCounter = 0
+      state.pendingRequestIds = []
+      state.currentRequestId = null
     }
   },
   extraReducers: builder => {
     builder
-      .addCase(fetchAlert.pending, state => {
-        state.loadingCounter++
-        state.loading = true
-      })
+      .addCase(fetchAlert.pending, requestPending)
       .addCase(fetchAlert.fulfilled, (state, action) => {
-        state.loadingCounter--
-        state.loading = state.loadingCounter > 0
+        requestSettled(state, action)
+        if (isStaleRequest(state, action)) return
         state.alerts = action.payload
       })
       .addCase(fetchAlert.rejected, (state, action) => {
-        state.loadingCounter--
-        state.loading = state.loadingCounter > 0
+        requestSettled(state, action)
+        if (isStaleRequest(state, action)) return
         if (isRequestAborted(action.payload)) return
         state.alerts = []
         state.error = action.payload
       })
-      .addCase(fetchAlerts.pending, state => {
-        state.loadingCounter++
-        state.loading = true
+      .addCase(fetchAlerts.pending, (state, action) => {
+        requestPending(state, action)
         state.error = null
       })
       .addCase(fetchAlerts.fulfilled, (state, action) => {
-        state.loadingCounter--
-        state.loading = state.loadingCounter > 0
+        requestSettled(state, action)
+        if (isStaleRequest(state, action)) return
         state.alerts = action.payload
       })
       .addCase(fetchAlerts.rejected, (state, action) => {
-        state.loadingCounter--
-        state.loading = state.loadingCounter > 0
+        requestSettled(state, action)
+        if (isStaleRequest(state, action)) return
         if (isRequestAborted(action.payload)) return
         state.error = action.payload
       })

@@ -17,7 +17,7 @@ illegal under applicable law, and the grant of the foregoing license
 under the Apache 2.0 license is conditioned upon your compliance with
 such restriction.
 */
-import jobReducer, { fetchJobs } from './jobReducer'
+import jobReducer, { abortJob, fetchAllJobRuns, fetchJobs, fetchScheduledJobs } from './jobReducer'
 
 const arg = { project: 'p', filters: {}, config: {} }
 
@@ -72,5 +72,54 @@ describe('jobReducer fetchJobs loading', () => {
     expect(state.loading).toBe(false)
     expect(state.jobs).toEqual([])
     expect(state.error).toBeTruthy()
+  })
+
+  it('does not let a stale fetchJobs response overwrite jobs after the user switched to the Scheduled tab', () => {
+    let state = jobReducer(undefined, { type: '@@INIT' })
+
+    state = jobReducer(state, fetchJobs.pending('jobsRequest', arg))
+
+    state = jobReducer(state, fetchScheduledJobs.pending('scheduledRequest', arg))
+    expect(state.loading).toBe(true)
+
+    state = jobReducer(state, fetchJobs.fulfilled([{ uid: 'stale-job' }], 'jobsRequest', arg))
+
+    expect(state.jobs).toEqual([])
+    expect(state.loading).toBe(true)
+
+    state = jobReducer(
+      state,
+      fetchScheduledJobs.fulfilled([{ name: 'sched-1' }], 'scheduledRequest', arg)
+    )
+    expect(state.loading).toBe(false)
+    expect(state.scheduled).toEqual([{ name: 'sched-1' }])
+  })
+
+  it('keeps a shared currentRequestId across fetchJobs/fetchAllJobRuns/fetchScheduledJobs', () => {
+    let state = jobReducer(undefined, { type: '@@INIT' })
+
+    state = jobReducer(state, fetchAllJobRuns.pending('runsRequest', arg))
+    expect(state.loading).toBe(true)
+
+    state = jobReducer(state, fetchAllJobRuns.fulfilled([{ uid: 'run-1' }], 'runsRequest', arg))
+    expect(state.loading).toBe(false)
+    expect(state.jobRuns).toEqual([{ uid: 'run-1' }])
+  })
+
+  it('does not let a quick mutation (e.g. Abort) clear loading while a list refresh is still in flight', () => {
+    let state = jobReducer(undefined, { type: '@@INIT' })
+
+    state = jobReducer(state, fetchJobs.pending('refreshRequest', arg))
+    expect(state.loading).toBe(true)
+
+    state = jobReducer(state, abortJob.pending('abortRequest', { projectName: 'p', job: {} }))
+    expect(state.loading).toBe(true)
+
+    state = jobReducer(state, abortJob.fulfilled({}, 'abortRequest', { projectName: 'p', job: {} }))
+    expect(state.loading).toBe(true)
+
+    state = jobReducer(state, fetchJobs.fulfilled([{ uid: 'job-1' }], 'refreshRequest', arg))
+    expect(state.loading).toBe(false)
+    expect(state.jobs).toEqual([{ uid: 'job-1' }])
   })
 })

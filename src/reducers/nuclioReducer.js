@@ -26,6 +26,7 @@ import { parseV3ioStreams } from '../utils/parseV3ioStreams'
 import { parseV3ioStreamShardLags } from '../utils/parseV3ioStreamShardLags'
 import { showErrorNotification } from 'igz-controls/utils/notification.util'
 import { isRequestAborted } from '../utils/isRequestAborted'
+import { requestPending, requestSettled } from './redux.util'
 
 export const fetchApiGateways = createAsyncThunk(
   'fetchApiGateways',
@@ -130,6 +131,8 @@ const initialState = {
   apiGateways: 0,
   projectApiGateways: [],
   projectApiGatewaysLoading: false,
+  projectApiGatewaysPendingIds: [],
+  projectApiGatewaysCurrentId: null,
   projectApiGatewaysError: null,
   functions: {},
   nuclioFunctionLoading: false,
@@ -147,6 +150,7 @@ const initialState = {
   },
   currentProjectFunctions: [],
   loading: false,
+  pendingRequestIds: [],
   error: null
 }
 
@@ -171,47 +175,43 @@ const nuclioSlice = createSlice({
     clearProjectApiGateways(state) {
       state.projectApiGateways = []
       state.projectApiGatewaysLoading = false
+      state.projectApiGatewaysPendingIds = []
+      state.projectApiGatewaysCurrentId = null
       state.projectApiGatewaysError = null
     }
   },
   extraReducers: builder => {
-    builder.addCase(fetchApiGateways.pending, state => {
-      state.loading = true
-    })
+    builder.addCase(fetchApiGateways.pending, requestPending)
     builder.addCase(fetchApiGateways.fulfilled, (state, action) => {
+      requestSettled(state, action)
       state.apiGateways = action.payload
-      state.loading = false
       state.error = null
     })
     builder.addCase(fetchApiGateways.rejected, (state, action) => {
+      requestSettled(state, action)
       state.apiGateways = 0
-      state.loading = false
       state.error = action.payload?.message
     })
-    builder.addCase(fetchNuclioFunctions.pending, state => {
-      state.loading = true
-    })
+    builder.addCase(fetchNuclioFunctions.pending, requestPending)
     builder.addCase(fetchNuclioFunctions.fulfilled, (state, action) => {
+      requestSettled(state, action)
       state.currentProjectFunctions = action.payload
-      state.loading = false
       state.error = null
     })
     builder.addCase(fetchNuclioFunctions.rejected, (state, action) => {
-      state.loading = false
+      requestSettled(state, action)
       if (isRequestAborted(action.payload)) return
       state.currentProjectFunctions = []
       state.error = action.payload?.message
     })
-    builder.addCase(fetchAllNuclioFunctions.pending, state => {
-      state.loading = true
-    })
+    builder.addCase(fetchAllNuclioFunctions.pending, requestPending)
     builder.addCase(fetchAllNuclioFunctions.fulfilled, (state, action) => {
+      requestSettled(state, action)
       state.functions = action.payload
-      state.loading = false
       state.error = null
     })
     builder.addCase(fetchAllNuclioFunctions.rejected, (state, action) => {
-      state.loading = false
+      requestSettled(state, action)
       if (isRequestAborted(action.payload)) return
       state.functions = {}
       state.error = action.payload?.message
@@ -275,17 +275,30 @@ const nuclioSlice = createSlice({
       }
     })
 
-    builder.addCase(fetchProjectApiGateways.pending, state => {
+    builder.addCase(fetchProjectApiGateways.pending, (state, action) => {
+      state.projectApiGatewaysPendingIds = [
+        ...state.projectApiGatewaysPendingIds,
+        action.meta.requestId
+      ]
+      state.projectApiGatewaysCurrentId = action.meta.requestId
       state.projectApiGatewaysLoading = true
       state.projectApiGatewaysError = null
     })
     builder.addCase(fetchProjectApiGateways.fulfilled, (state, action) => {
+      state.projectApiGatewaysPendingIds = state.projectApiGatewaysPendingIds.filter(
+        id => id !== action.meta.requestId
+      )
+      state.projectApiGatewaysLoading = state.projectApiGatewaysPendingIds.length > 0
+      if (action.meta.requestId !== state.projectApiGatewaysCurrentId) return
       state.projectApiGateways = action.payload
-      state.projectApiGatewaysLoading = false
       state.projectApiGatewaysError = null
     })
     builder.addCase(fetchProjectApiGateways.rejected, (state, action) => {
-      state.projectApiGatewaysLoading = false
+      state.projectApiGatewaysPendingIds = state.projectApiGatewaysPendingIds.filter(
+        id => id !== action.meta.requestId
+      )
+      state.projectApiGatewaysLoading = state.projectApiGatewaysPendingIds.length > 0
+      if (action.meta.requestId !== state.projectApiGatewaysCurrentId) return
       if (isRequestAborted(action.payload)) return
       state.projectApiGateways = []
       state.projectApiGatewaysError = action.payload?.message

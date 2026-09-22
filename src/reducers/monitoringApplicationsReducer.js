@@ -26,6 +26,7 @@ import { getErrorMsg } from 'igz-controls/utils/common.util'
 
 import { DATES_FILTER } from '../constants'
 import { isRequestAborted } from '../utils/isRequestAborted'
+import { isStaleRequest, requestPending, requestSettled } from './redux.util'
 
 import monitoringApplicationsApi from '../api/monitoringApplications-api'
 import nuclioApi from '../api/nuclio'
@@ -33,7 +34,8 @@ import nuclioApi from '../api/nuclio'
 const initialState = {
   applicationsSummary: {
     loading: false,
-    loadingCounter: 0,
+    pendingRequestIds: [],
+    currentRequestId: null,
     error: null
   },
   endpointsWithDetections: {
@@ -43,6 +45,8 @@ const initialState = {
       end: null
     },
     loading: false,
+    pendingRequestIds: [],
+    currentRequestId: null,
     error: null
   },
   monitoringApplication: {},
@@ -51,7 +55,7 @@ const initialState = {
     operatingFunctions: []
   },
   loading: false,
-  loadingCounter: 0,
+  pendingRequestIds: [],
   error: null
 }
 
@@ -171,69 +175,66 @@ const monitoringApplicationsSlice = createSlice({
     }
   },
   extraReducers: builder => {
-    builder.addCase(fetchMEPWithDetections.pending, state => {
-      state.endpointsWithDetections.loading = true
+    builder.addCase(fetchMEPWithDetections.pending, (state, action) => {
+      requestPending(state.endpointsWithDetections, action)
     })
-    builder.addCase(fetchMEPWithDetections.fulfilled, (state, { payload }) => {
-      state.endpointsWithDetections.data = payload
-      state.endpointsWithDetections.loading = false
+    builder.addCase(fetchMEPWithDetections.fulfilled, (state, action) => {
+      requestSettled(state.endpointsWithDetections, action)
+      if (isStaleRequest(state.endpointsWithDetections, action)) return
+      state.endpointsWithDetections.data = action.payload
       state.endpointsWithDetections.error = null
     })
     builder.addCase(fetchMEPWithDetections.rejected, (state, action) => {
-      state.endpointsWithDetections.loading = false
+      requestSettled(state.endpointsWithDetections, action)
+      if (isStaleRequest(state.endpointsWithDetections, action)) return
       if (isRequestAborted(action.error)) return
 
       state.endpointsWithDetections.error = action.error
     })
-    builder.addCase(fetchMonitoringApplication.pending, state => {
-      state.loadingCounter++
-      state.loading = true
-    })
-    builder.addCase(fetchMonitoringApplication.fulfilled, (state, { payload }) => {
-      state.loadingCounter--
-      state.loading = state.loadingCounter > 0
-      state.monitoringApplication = payload
+    builder.addCase(fetchMonitoringApplication.pending, requestPending)
+    builder.addCase(fetchMonitoringApplication.fulfilled, (state, action) => {
+      requestSettled(state, action)
+      state.monitoringApplication = action.payload
       state.error = null
     })
     builder.addCase(fetchMonitoringApplication.rejected, (state, action) => {
-      state.loadingCounter--
-      state.loading = state.loadingCounter > 0
+      requestSettled(state, action)
       if (isRequestAborted(action.error)) return
 
       state.error = action.error
     })
-    builder.addCase(fetchMonitoringApplications.pending, state => {
-      state.loadingCounter++
-      state.loading = true
-    })
-    builder.addCase(fetchMonitoringApplications.fulfilled, (state, { payload }) => {
-      state.loadingCounter--
-      state.loading = state.loadingCounter > 0
-      state.monitoringApplications = payload
+    builder.addCase(fetchMonitoringApplications.pending, requestPending)
+    builder.addCase(fetchMonitoringApplications.fulfilled, (state, action) => {
+      requestSettled(state, action)
+      state.monitoringApplications = action.payload
       state.error = null
     })
     builder.addCase(fetchMonitoringApplications.rejected, (state, action) => {
-      state.loadingCounter--
-      state.loading = state.loadingCounter > 0
+      requestSettled(state, action)
       if (isRequestAborted(action.payload)) return
 
       state.error = action.payload
     })
-    builder.addCase(fetchMonitoringApplicationsSummary.pending, state => {
-      state.applicationsSummary.loadingCounter++
-      state.applicationsSummary.loading = true
+    builder.addCase(fetchMonitoringApplicationsSummary.pending, (state, action) => {
+      requestPending(state.applicationsSummary, action)
     })
-    builder.addCase(fetchMonitoringApplicationsSummary.fulfilled, (state, { payload }) => {
-      const loadingCounter = state.applicationsSummary.loadingCounter - 1
+    builder.addCase(fetchMonitoringApplicationsSummary.fulfilled, (state, action) => {
+      requestSettled(state.applicationsSummary, action)
+      if (isStaleRequest(state.applicationsSummary, action)) return
 
-      state.applicationsSummary = payload
-      state.applicationsSummary.loadingCounter = loadingCounter
-      state.applicationsSummary.loading = loadingCounter > 0
-      state.applicationsSummary.error = null
+      const { pendingRequestIds, currentRequestId, loading } = state.applicationsSummary
+
+      state.applicationsSummary = {
+        ...action.payload,
+        pendingRequestIds,
+        currentRequestId,
+        loading,
+        error: null
+      }
     })
     builder.addCase(fetchMonitoringApplicationsSummary.rejected, (state, action) => {
-      state.applicationsSummary.loadingCounter--
-      state.applicationsSummary.loading = state.applicationsSummary.loadingCounter > 0
+      requestSettled(state.applicationsSummary, action)
+      if (isStaleRequest(state.applicationsSummary, action)) return
       if (isRequestAborted(action.error)) return
 
       state.applicationsSummary.error = action.error
